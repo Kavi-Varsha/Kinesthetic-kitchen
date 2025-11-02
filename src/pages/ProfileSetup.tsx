@@ -16,19 +16,30 @@ interface ProfileData {
   timeAvailability: string;
 }
 
+const API_URL = "http://localhost:5000/api/profile"; // New profile endpoint
+
 const ProfileSetup = () => {
   const [profileData, setProfileData] = useState<ProfileData>({
     dietaryRestrictions: [],
     healthConditions: [],
-    spicePreference: "",
+    spicePreference: "medium", // Default to avoid empty submit
     cuisineTypes: [],
-    timeAvailability: "",
+    timeAvailability: "30-min", // Default to avoid empty submit
   });
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const toggleArrayItem = (array: string[], item: string) => {
+    // Logic to ensure 'none' is exclusive for Health Conditions
+    if (array === profileData.healthConditions) {
+        if (item === 'none') {
+            return array.includes('none') ? [] : ['none'];
+        } else if (array.includes('none') && item !== 'none') {
+            array = array.filter(i => i !== 'none');
+        }
+    }
+    
     return array.includes(item)
       ? array.filter((i) => i !== item)
       : [...array, item];
@@ -38,15 +49,54 @@ const ProfileSetup = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API call to save profile
-    setTimeout(() => {
-      toast({
-        title: "Profile saved!",
-        description: "Your preferences have been saved successfully",
-      });
-      navigate("/dashboard");
-      setIsLoading(false);
-    }, 1000);
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+        toast({
+            title: "Authentication Error",
+            description: "You must be logged in to set up your profile.",
+            variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+    }
+
+    try {
+        const response = await fetch(API_URL, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`, // Pass the JWT
+            },
+            body: JSON.stringify(profileData),
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            toast({
+                title: "Profile saved!",
+                description: result.message || "Your preferences have been saved successfully.",
+            });
+            // Optionally update user data in global state/context if you have one
+            navigate("/dashboard");
+        } else {
+            toast({
+                title: "Failed to save profile",
+                description: result.message || "Please try again later.",
+                variant: "destructive"
+            });
+        }
+    } catch (error) {
+        console.error("Profile API Error:", error);
+        toast({
+            title: "Network Error",
+            description: "Could not connect to the server.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (
