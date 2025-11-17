@@ -1,3 +1,4 @@
+// src/pages/RecipeGenerator.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,12 +6,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, X } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 const RecipeGenerator = () => {
   const navigate = useNavigate();
+  const { getToken } = useAuth();
+  const { toast } = useToast();
+
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [currentIngredient, setCurrentIngredient] = useState("");
+  const [recipeResult, setRecipeResult] = useState<string>("");
+  const [substitutes, setSubstitutes] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const addIngredient = () => {
     if (currentIngredient.trim()) {
@@ -21,6 +30,50 @@ const RecipeGenerator = () => {
 
   const removeIngredient = (index: number) => {
     setIngredients(ingredients.filter((_, i) => i !== index));
+  };
+
+  const generateRecipes = async () => {
+    setIsLoading(true);
+    setRecipeResult("");
+    setSubstitutes("");
+    const token = getToken();
+
+    try {
+      const response = await fetch("http://localhost:5000/api/recipes/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ingredients }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate recipe");
+      }
+
+      const fullText = data.recipe || "";
+
+      // Split the recipe from the substitutes section for separate display
+      const splitIndex = fullText.indexOf("⭐ Ingredient Substitutes");
+      if (splitIndex !== -1) {
+        setRecipeResult(fullText.substring(0, splitIndex).trim());
+        setSubstitutes(fullText.substring(splitIndex).trim());
+      } else {
+        setRecipeResult(fullText);
+      }
+
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Could not reach the server.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -36,10 +89,11 @@ const RecipeGenerator = () => {
 
       <main className="container mx-auto px-4 py-8 max-w-2xl">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">🍳 arator</h1>
-          <p className="text-muted-foreground">Enter your ingredients and get personalized recipes</p>
+          <h1 className="text-3xl font-bold mb-2">🍳 Recipe Generator</h1>
+          <p className="text-muted-foreground">Enter your ingredients to get personalized recipes</p>
         </div>
 
+        {/* INGREDIENT CARD */}
         <Card className="shadow-elegant mb-6">
           <CardHeader>
             <CardTitle>Available Ingredients</CardTitle>
@@ -47,73 +101,59 @@ const RecipeGenerator = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  placeholder="e.g., Tomatoes, Garlic, Olive Oil"
-                  value={currentIngredient}
-                  onChange={(e) => setCurrentIngredient(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && addIngredient()}
-                />
-              </div>
-              <Button onClick={addIngredient}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add
-              </Button>
+              <Input
+                placeholder="e.g., Chicken, Bell Peppers, Onions"
+                value={currentIngredient}
+                onChange={(e) => setCurrentIngredient(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && addIngredient()}
+              />
+              <Button onClick={addIngredient}><Plus className="w-4 h-4 mr-2" />Add</Button>
             </div>
 
             {ingredients.length > 0 && (
-              <div className="space-y-2">
-                <Label>Your Ingredients:</Label>
-                <div className="flex flex-wrap gap-2">
-                  {ingredients.map((ingredient, index) => (
-                    <Badge key={index} variant="secondary" className="text-sm px-3 py-1">
-                      {ingredient}
-                      <button
-                        onClick={() => removeIngredient(index)}
-                        className="ml-2 hover:text-destructive"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
+              <div className="flex flex-wrap gap-2 pt-4">
+                {ingredients.map((ingredient, index) => (
+                  <Badge key={index} variant="secondary" className="text-sm px-3 py-1">
+                    {ingredient}
+                    <button onClick={() => removeIngredient(index)} className="ml-2 hover:text-destructive"><X className="w-3 h-3" /></button>
+                  </Badge>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="shadow-soft mb-6">
-          <CardContent className="pt-6">
-            <div className="space-y-3">
-              <Label>Allergies</Label>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">Nuts</Badge>
-                <Badge variant="outline">Dairy</Badge>
-                <Badge variant="outline">Gluten</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="space-y-3">
-          <p className="text-sm text-center text-muted-foreground">
-            Want to try with sample Italian & Mediterranean menu?
-          </p>
-          <Button 
-            className="w-full" 
+        {/* GENERATE BUTTON */}
+        <div className="text-center">
+          <Button
+            className="w-full"
             size="lg"
-            disabled={ingredients.length === 0}
+            disabled={ingredients.length === 0 || isLoading}
+            onClick={generateRecipes}
           >
-            Generate Recipes
-          </Button>
-          <Button variant="outline" className="w-full">
-            Scan Menu
+            {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</> : "Generate Recipes"}
           </Button>
         </div>
 
-        <p className="text-xs text-center text-muted-foreground mt-6">
-          We'll analyze the menu items based on your health profile
-        </p>
+        {/* RECIPE RESULT */}
+        {recipeResult && (
+          <Card className="shadow-soft mt-6 animate-in fade-in-50">
+            <CardHeader><CardTitle>Your Personalized Recipe</CardTitle></CardHeader>
+            <CardContent>
+              <p className="whitespace-pre-line text-sm">{recipeResult}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* SUBSTITUTES RESULT */}
+        {substitutes && (
+          <Card className="shadow-soft mt-4 border border-primary/20 animate-in fade-in-50">
+            <CardHeader><CardTitle>Substitutions & Tips</CardTitle></CardHeader>
+            <CardContent>
+              <p className="whitespace-pre-line text-sm">{substitutes}</p>
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   );

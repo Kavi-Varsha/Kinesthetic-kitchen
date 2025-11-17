@@ -7,9 +7,12 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const crypto = require('crypto'); // Built-in Node.js module for tokens
-
-// Load environment variables (e.g., MONGO_URI, JWT_SECRET)
+const Groq = require("groq-sdk");
 dotenv.config();
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// Load environment variables (e.g., MONGO_URI, JWT_SECRET)
+
 
 // ------------------------------------
 // 1. SETUP EXPRESS APP & MIDDLEWARE
@@ -407,6 +410,200 @@ app.put('/api/auth/resetpassword/:resetToken', async (req, res) => {
         console.error('Reset Password error:', error);
         res.status(500).json({ success: false, message: 'A server error occurred during password reset.' });
     }
+});
+
+
+
+// ... (rest of your server.js file)
+// =================================================================
+// Extracted Groq AI Recipe Generation Module
+// =================================================================
+
+// 1. Initialize the Groq AI Client
+
+
+// 2. The Express Route for Recipe Generation
+// server.js -> AI Recipe Generation Route
+
+app.post("/api/recipes/generate", protect, async (req, res) => {
+  const { ingredients } = req.body;
+
+  if (!ingredients || ingredients.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Please provide at least one ingredient.",
+    });
+  }
+
+  // --- Step 1: Read the full user profile from the authenticated user ---
+  const profile = req.user?.profile || {};
+  const dietaryRestrictions = profile.dietaryRestrictions || [];
+  const healthConditions = profile.healthConditions || [];
+  const spicePreference = profile.spicePreference || "medium";
+  const cuisineTypes = profile.cuisineTypes || [];
+  const timeAvailability = profile.timeAvailability || "30-min";
+
+  // --- Step 2: Perform Allergy Filtering based on profile ---
+  let blockedIngredients = [];
+  let safeIngredients = ingredients.filter((item) => {
+    const lower = item.toLowerCase();
+    if (dietaryRestrictions.includes("nut-free") && (lower.includes("nut") || lower.includes("almond") || lower.includes("peanut"))) {
+      blockedIngredients.push(item);
+      return false;
+    }
+    if (dietaryRestrictions.includes("dairy-free") && (lower.includes("milk") || lower.includes("cheese") || lower.includes("butter") || lower.includes("yogurt"))) {
+      blockedIngredients.push(item);
+      return false;
+    }
+    if (dietaryRestrictions.includes("gluten-free") && (lower.includes("wheat") || lower.includes("flour") || lower.includes("bread") || lower.includes("pasta"))) {
+      blockedIngredients.push(item);
+      return false;
+    }
+    return true;
+  });
+
+  if (safeIngredients.length === 0) {
+    return res.json({
+      success: true, // Send success: true so the frontend can display the custom message
+      recipe: `All of your ingredients conflict with your profile's dietary restrictions. The following were blocked: ${blockedIngredients.join(", ")}`,
+    });
+  }
+
+  // --- Step 3: Construct the detailed prompt for Groq AI ---
+  const prompt = `
+    Generate a personalized cooking recipe based on the details below. Make the tone fun, exciting, and encouraging.
+
+    ==========================
+    USER PROFILE
+    ==========================
+    - Dietary Restrictions: ${dietaryRestrictions.join(", ") || "None"}
+    - Health Conditions: ${healthConditions.join(", ") || "None"}
+    - Spice Preference: ${spicePreference}
+    - Preferred Cuisines: ${cuisineTypes.join(", ") || "Any"}
+    - Available Cooking Time: ${timeAvailability}
+
+    Strictly Avoid these ingredients due to restrictions: ${dietaryRestrictions.join(", ")}
+    The user provided these unsafe ingredients which have been blocked: ${blockedIngredients.join(", ") || "None"}
+
+    You MUST use ONLY these safe ingredients provided by the user: ${safeIngredients.join(", ")}
+
+    ==========================
+    COOKING RULES
+    ==========================
+    - Adhere strictly to ALL dietary restrictions.
+    - If vegan/vegetarian, ensure no animal products are used.
+    - For Keto, focus on low-carb ingredients.
+    - For Diabetes, ensure the recipe is low in sugar.
+    - For Hypertension, ensure the recipe is low in sodium.
+    - The recipe's total cook time must fit within the user's available time.
+    - Keep the steps beginner-friendly and easy to follow.
+
+    ==========================
+    OUTPUT FORMAT (MANDATORY)
+    ==========================
+    Provide the recipe as a single, continuous block of text. The output MUST be structured exactly as follows:
+    1. A creative "Recipe Title".
+    2. A list of "Ingredients" with exact quantities.
+    3. A list of "Step-by-step Instructions".
+    4. A section titled "⭐ Ingredient Substitutes" which is very important. In this section, provide 1-2 safe substitutes for EACH of the primary safe ingredients. Ensure these substitutes do not violate any of the user's dietary restrictions.
+  `;
+
+  // --- Step 4: Make the request to the Groq API ---
+  try {
+    const response = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant", // A fast and capable model for this task
+      messages: [
+        { role: "system", content: "You are a world-class, personalized recipe generator named HealthChef." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.7,
+    });
+
+    const recipeText = response.choices?.[0]?.message?.content || "Sorry, I couldn't generate a recipe at this time.";
+
+    res.json({
+      success: true,
+      recipe: recipeText, // Send the raw text back to the frontend
+    });
+
+  } catch (err) {
+    console.error("🔥 GROQ AI ERROR:", err);
+    res.status(500).json({
+      success: false,
+      message: "The AI recipe generator failed to respond. Please try again later.",
+    });
+  }
+});
+
+// server.js
+
+// ... (your existing code, including the /api/recipes/generate route)
+
+// ------------------------------------
+// 12. "TODAY'S RECIPE" ROUTE (NEW)
+// ------------------------------------
+
+// @route   GET /api/recipes/today
+// @desc    Generate a single, random recipe suggestion based on user profile
+// @access  Private
+app.get("/api/recipes/today", protect, async (req, res) => {
+  try {
+    // Get the user's profile from the authenticated user
+    const profile = req.user?.profile || {};
+    const userName = req.user?.name || 'there';
+
+    // --- Construct the prompt for a single, simple recipe idea ---
+    const prompt = `
+      You are HealthChef, an AI assistant that provides a single, exciting "Recipe of the Day" suggestion.
+      A user named "${userName}" needs a new idea. Generate ONE recipe that fits their profile:
+      - Dietary Restrictions: ${profile.dietaryRestrictions?.join(", ") || "None"}
+      - Health Conditions: ${profile.healthConditions?.join(", ") || "None"}
+      - Preferred Cuisines: ${profile.cuisineTypes?.join(", ") || "Any"}
+      - Available Cooking Time: ${profile.timeAvailability || "any"}
+
+      The user is looking for inspiration, not a full recipe.
+
+      Respond ONLY with a valid JSON object. Do not include any other text, explanations, or markdown. The JSON object MUST have this exact structure:
+      {
+        "title": "A creative and appealing recipe title",
+        "description": "A very short, one-sentence enticing description of the dish.",
+        "time": "A string representing the estimated cooking time (e.g., '25 minutes')",
+        "badges": [
+          "A relevant badge based on the recipe (e.g., 'Vegan', 'Keto', 'Low-Carb')",
+          "A second relevant badge (e.g., 'Heart Healthy', 'Quick Meal', 'Spicy')"
+        ]
+      }
+    `;
+
+    const response = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        { role: "system", content: "You are a helpful recipe suggestion generator that always responds in perfect JSON." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.8, // Slightly higher temperature for more creative suggestions
+      response_format: { type: "json_object" }, // Guarantee the output is valid JSON
+    });
+
+    const rawText = response.choices?.[0]?.message?.content || "{}";
+    const recipeJSON = JSON.parse(rawText);
+
+    res.json({ success: true, recipe: recipeJSON });
+
+  } catch (err) {
+    console.error("🔥 GROQ 'TODAY'S RECIPE' ERROR:", err);
+    // Provide a safe fallback recipe if the AI fails
+    res.status(500).json({
+      success: false,
+      message: "Failed to generate today's recipe.",
+      recipe: {
+        title: "Classic Tomato & Basil Bruschetta",
+        description: "A quick and refreshing appetizer perfect for any occasion.",
+        time: "15 minutes",
+        badges: ["Vegetarian", "Quick Snack"],
+      }
+    });
+  }
 });
 
 
