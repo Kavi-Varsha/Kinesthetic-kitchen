@@ -16,7 +16,7 @@ interface ProfileData {
   timeAvailability: string;
 }
 
-const API_URL = "http://localhost:5000/api/profile"; // New profile endpoint
+const API_URL = "http://localhost:5003/api/profile"; // New profile endpoint
 
 const ProfileSetup = () => {
   const [profileData, setProfileData] = useState<ProfileData>({

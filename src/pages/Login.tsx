@@ -9,7 +9,7 @@ import { ChefHat } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth"; // <-- IMPORT THE NEW HOOK
 
-const API_URL = "http://localhost:5000/api/auth/login";
+const API_URL = "http://localhost:5003/api/auth/login";
 
 const Login = () => {
   const [email, setEmail] = useState("");

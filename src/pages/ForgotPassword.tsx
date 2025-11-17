@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 // FIX: Using relative import path to resolve bundler error
 import useAuthToken from "../hooks/use-auth-token"; 
 
-const API_URL = "http://localhost:5000/api/auth/forgotpassword"; // Backend Forgot Password Endpoint
+const API_URL = "http://localhost:5003/api/auth/forgotpassword"; // Backend Forgot Password Endpoint
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");

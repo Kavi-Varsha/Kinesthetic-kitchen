@@ -18,7 +18,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 // 1. SETUP EXPRESS APP & MIDDLEWARE
 // ------------------------------------
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5003;
 
 // IMPORTANT: Ensure you have a strong secret key in your .env file
 const JWT_SECRET = process.env.JWT_SECRET || 'your_default_jwt_secret_please_change';
@@ -413,8 +413,6 @@ app.put('/api/auth/resetpassword/:resetToken', async (req, res) => {
 });
 
 
-
-// ... (rest of your server.js file)
 // =================================================================
 // Extracted Groq AI Recipe Generation Module
 // =================================================================
@@ -535,9 +533,6 @@ app.post("/api/recipes/generate", protect, async (req, res) => {
   }
 });
 
-// server.js
-
-// ... (your existing code, including the /api/recipes/generate route)
 
 // ------------------------------------
 // 12. "TODAY'S RECIPE" ROUTE (NEW)
@@ -546,22 +541,307 @@ app.post("/api/recipes/generate", protect, async (req, res) => {
 // @route   GET /api/recipes/today
 // @desc    Generate a single, random recipe suggestion based on user profile
 // @access  Private
+// ------------------------------------
+// INGREDIENT SUBSTITUTION ENDPOINT
+// ------------------------------------
+app.post("/api/recipes/substitutes", protect, async (req, res) => {
+  const { ingredient } = req.body;
+
+  if (!ingredient) {
+    return res.status(400).json({
+      success: false,
+      message: "Please provide an ingredient.",
+    });
+  }
+
+  const profile = req.user?.profile || {};
+  const dietaryRestrictions = profile.dietaryRestrictions || [];
+
+  const prompt = `
+    You are HealthChef, an AI culinary assistant. A user wants substitutes for: "${ingredient}"
+
+    User's dietary restrictions: ${dietaryRestrictions.join(", ") || "None"}
+
+    Provide exactly 5 substitute ingredients that:
+    1. Can replace "${ingredient}" in most recipes
+    2. Do NOT violate the user's dietary restrictions
+    3. Are commonly available
+
+    Respond ONLY with a valid JSON object:
+    {
+      "original": "${ingredient}",
+      "substitutes": [
+        {
+          "name": "Substitute ingredient name",
+          "reason": "Brief reason why this works as a substitute",
+          "ratio": "Substitution ratio (e.g., '1:1' or '2:1')"
+        }
+      ]
+    }
+  `;
+
+  try {
+    const response = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        { role: "system", content: "You are a helpful culinary assistant that responds only in valid JSON." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.6,
+      response_format: { type: "json_object" },
+    });
+
+    const rawText = response.choices?.[0]?.message?.content || "{}";
+    const result = JSON.parse(rawText);
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error("SUBSTITUTION ERROR:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to generate substitutes.",
+    });
+  }
+});
+
+// ------------------------------------
+// MENU SCANNING / OCR ENDPOINT
+// ------------------------------------
+app.post("/api/menu/scan", protect, async (req, res) => {
+  const { imageBase64, menuText } = req.body;
+
+  if (!imageBase64 && !menuText) {
+    return res.status(400).json({
+      success: false,
+      message: "Please provide menu image or text.",
+    });
+  }
+
+  const profile = req.user?.profile || {};
+  const dietaryRestrictions = profile.dietaryRestrictions || [];
+
+  // If text is provided directly (from client-side OCR or manual input)
+  const textToAnalyze = menuText || "No text provided - using image analysis";
+
+  const prompt = `
+    You are HealthChef, an AI menu analyzer. Analyze this restaurant menu text and provide:
+    1. List of identified dishes
+    2. Key ingredients found
+    3. Substitution suggestions based on user restrictions
+    4. Recipe recommendations
+
+    User's dietary restrictions: ${dietaryRestrictions.join(", ") || "None"}
+    Health conditions: ${profile.healthConditions?.join(", ") || "None"}
+
+    Menu Text:
+    ${textToAnalyze}
+
+    Respond ONLY with valid JSON:
+    {
+      "dishes": [
+        {
+          "name": "Dish name",
+          "description": "Brief description",
+          "suitability": "safe" | "caution" | "avoid",
+          "reason": "Why this rating"
+        }
+      ],
+      "ingredients": ["list", "of", "key", "ingredients"],
+      "substitutions": [
+        {
+          "original": "Problematic ingredient",
+          "substitute": "Safe alternative",
+          "reason": "Why to substitute"
+        }
+      ],
+      "recommendations": [
+        {
+          "dish": "Recommended dish name",
+          "modification": "How to order it safely"
+        }
+      ]
+    }
+  `;
+
+  try {
+    const response = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        { role: "system", content: "You are a health-conscious menu analyzer that responds only in valid JSON." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.5,
+      response_format: { type: "json_object" },
+    });
+
+    const rawText = response.choices?.[0]?.message?.content || "{}";
+    const result = JSON.parse(rawText);
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error("MENU SCAN ERROR:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to analyze menu.",
+    });
+  }
+});
+
+// ------------------------------------
+// SKILL-BASED RECIPE GENERATION
+// ------------------------------------
+app.post("/api/recipes/generate-advanced", protect, async (req, res) => {
+  const { ingredients, skillLevel = "intermediate" } = req.body;
+
+  if (!ingredients || ingredients.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Please provide at least one ingredient.",
+    });
+  }
+
+  const profile = req.user?.profile || {};
+  const dietaryRestrictions = profile.dietaryRestrictions || [];
+  const healthConditions = profile.healthConditions || [];
+  const spicePreference = profile.spicePreference || "medium";
+  const cuisineTypes = profile.cuisineTypes || [];
+  const timeAvailability = profile.timeAvailability || "30-min";
+
+  // Filter blocked ingredients
+  let blockedIngredients = [];
+  let safeIngredients = ingredients.filter((item) => {
+    const lower = item.toLowerCase();
+    if (dietaryRestrictions.includes("nut-free") && (lower.includes("nut") || lower.includes("almond") || lower.includes("peanut"))) {
+      blockedIngredients.push(item);
+      return false;
+    }
+    if (dietaryRestrictions.includes("dairy-free") && (lower.includes("milk") || lower.includes("cheese") || lower.includes("butter") || lower.includes("yogurt"))) {
+      blockedIngredients.push(item);
+      return false;
+    }
+    if (dietaryRestrictions.includes("gluten-free") && (lower.includes("wheat") || lower.includes("flour") || lower.includes("bread") || lower.includes("pasta"))) {
+      blockedIngredients.push(item);
+      return false;
+    }
+    return true;
+  });
+
+  if (safeIngredients.length === 0) {
+    return res.json({
+      success: true,
+      recipe: null,
+      message: `All ingredients conflict with dietary restrictions. Blocked: ${blockedIngredients.join(", ")}`,
+    });
+  }
+
+  // Skill level descriptions
+  const skillDescriptions = {
+    beginner: "Simple steps, basic techniques only, minimal equipment, no advanced skills required. Use common ingredients and straightforward methods like boiling, frying, or baking. Include exact timings and visual cues.",
+    intermediate: "Moderate complexity, some technique required, standard kitchen equipment. Can include sautéing, roasting, making sauces, and layering flavors. Assume basic cooking knowledge.",
+    advanced: "Complex techniques, professional methods, may require specialized equipment. Include advanced skills like emulsification, reduction, tempering, or sous vide. Focus on technique and precision."
+  };
+
+  const prompt = `
+    Generate a structured recipe in JSON format based on the following:
+
+    USER PROFILE:
+    - Dietary Restrictions: ${dietaryRestrictions.join(", ") || "None"}
+    - Health Conditions: ${healthConditions.join(", ") || "None"}
+    - Spice Preference: ${spicePreference}
+    - Preferred Cuisines: ${cuisineTypes.join(", ") || "Any"}
+    - Available Time: ${timeAvailability}
+
+    SKILL LEVEL: ${skillLevel.toUpperCase()}
+    ${skillDescriptions[skillLevel] || skillDescriptions.intermediate}
+
+    INGREDIENTS TO USE: ${safeIngredients.join(", ")}
+    BLOCKED INGREDIENTS: ${blockedIngredients.join(", ") || "None"}
+
+    Respond ONLY with valid JSON:
+    {
+      "title": "Creative recipe title",
+      "description": "Enticing 2-3 sentence description",
+      "difficulty": "${skillLevel}",
+      "prepTime": "X minutes",
+      "cookTime": "X minutes",
+      "totalTime": "X minutes",
+      "servings": "X servings",
+      "ingredients": [
+        {
+          "item": "Ingredient name",
+          "amount": "Quantity",
+          "unit": "unit of measurement",
+          "notes": "optional preparation notes"
+        }
+      ],
+      "steps": [
+        {
+          "number": 1,
+          "instruction": "Detailed step instruction",
+          "time": "Time for this step",
+          "tip": "Optional helpful tip"
+        }
+      ],
+      "nutrition": {
+        "calories": "Approximate calories per serving",
+        "protein": "Xg",
+        "carbs": "Xg",
+        "fat": "Xg"
+      },
+      "tips": ["Array of helpful cooking tips"],
+      "substitutes": [
+        {
+          "original": "Original ingredient",
+          "alternatives": ["Alternative 1", "Alternative 2"]
+        }
+      ]
+    }
+  `;
+
+  try {
+    const response = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        { role: "system", content: "You are HealthChef, a world-class recipe generator that responds only in valid JSON." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.7,
+      response_format: { type: "json_object" },
+    });
+
+    const rawText = response.choices?.[0]?.message?.content || "{}";
+    const recipe = JSON.parse(rawText);
+
+    res.json({
+      success: true,
+      recipe,
+      blockedIngredients,
+    });
+  } catch (err) {
+    console.error("ADVANCED RECIPE ERROR:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to generate recipe.",
+    });
+  }
+});
+
 app.get("/api/recipes/today", protect, async (req, res) => {
   try {
     // Get the user's profile from the authenticated user
     const profile = req.user?.profile || {};
     const userName = req.user?.name || 'there';
 
-    // --- Construct the prompt for a single, simple recipe idea ---
+    // --- Construct the prompt for a complete recipe of the day ---
     const prompt = `
-      You are HealthChef, an AI assistant that provides a single, exciting "Recipe of the Day" suggestion.
-      A user named "${userName}" needs a new idea. Generate ONE recipe that fits their profile:
+      You are HealthChef, an AI assistant that provides a complete "Recipe of the Day" with full details.
+      A user named "${userName}" needs today's recipe. Generate ONE complete recipe that fits their profile:
       - Dietary Restrictions: ${profile.dietaryRestrictions?.join(", ") || "None"}
       - Health Conditions: ${profile.healthConditions?.join(", ") || "None"}
       - Preferred Cuisines: ${profile.cuisineTypes?.join(", ") || "Any"}
       - Available Cooking Time: ${profile.timeAvailability || "any"}
 
-      The user is looking for inspiration, not a full recipe.
+      Provide a COMPLETE recipe with all details needed to cook it.
 
       Respond ONLY with a valid JSON object. Do not include any other text, explanations, or markdown. The JSON object MUST have this exact structure:
       {
@@ -571,6 +851,25 @@ app.get("/api/recipes/today", protect, async (req, res) => {
         "badges": [
           "A relevant badge based on the recipe (e.g., 'Vegan', 'Keto', 'Low-Carb')",
           "A second relevant badge (e.g., 'Heart Healthy', 'Quick Meal', 'Spicy')"
+        ],
+        "ingredients": [
+          "1 cup ingredient with measurement",
+          "2 tbsp another ingredient"
+        ],
+        "steps": [
+          "First step instruction",
+          "Second step instruction",
+          "Continue with remaining steps"
+        ],
+        "nutrition": {
+          "calories": "Estimated calories per serving (e.g., '320 kcal')",
+          "protein": "Protein content (e.g., '18g')",
+          "carbs": "Carbohydrates (e.g., '35g')",
+          "fat": "Fat content (e.g., '12g')"
+        },
+        "tips": [
+          "A helpful cooking tip or variation",
+          "Another useful suggestion"
         ]
       }
     `;
@@ -601,6 +900,33 @@ app.get("/api/recipes/today", protect, async (req, res) => {
         description: "A quick and refreshing appetizer perfect for any occasion.",
         time: "15 minutes",
         badges: ["Vegetarian", "Quick Snack"],
+        ingredients: [
+          "1 baguette, sliced into 1/2-inch rounds",
+          "4 ripe tomatoes, diced",
+          "1/4 cup fresh basil leaves, chopped",
+          "2 cloves garlic, minced",
+          "3 tbsp extra virgin olive oil",
+          "1 tbsp balsamic vinegar",
+          "Salt and pepper to taste"
+        ],
+        steps: [
+          "Preheat your oven to 400°F (200°C).",
+          "Arrange baguette slices on a baking sheet and brush with olive oil. Toast for 8-10 minutes until golden.",
+          "In a bowl, combine diced tomatoes, basil, garlic, remaining olive oil, and balsamic vinegar.",
+          "Season with salt and pepper to taste.",
+          "Spoon the tomato mixture onto toasted bread slices.",
+          "Serve immediately and enjoy!"
+        ],
+        nutrition: {
+          calories: "180 kcal",
+          protein: "4g",
+          carbs: "24g",
+          fat: "8g"
+        },
+        tips: [
+          "Use the ripest tomatoes you can find for the best flavor.",
+          "Add a drizzle of balsamic glaze for extra sweetness."
+        ]
       }
     });
   }

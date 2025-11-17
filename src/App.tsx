@@ -19,7 +19,8 @@ import RecipeGenerator from "./pages/RecipeGenerator";
 import VRTraining from "./pages/VRTraining";
 import Skills from "./pages/Skills";
 import NotFound from "./pages/NotFound";
-import ResetPassword from "./pages/ResetPassword"; 
+import ResetPassword from "./pages/ResetPassword";
+import Settings from "./pages/Settings";
 
 // --- IMPORT THE PROTECTED ROUTE COMPONENT ---
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/recipe-generator" element={<RecipeGenerator />} />
             <Route path="/vr-training" element={<VRTraining />} />
             <Route path="/skills" element={<Skills />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
 
           {/* --- CATCH-ALL 404 ROUTE --- */}

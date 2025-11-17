@@ -41,7 +41,7 @@ const ResetPassword = () => {
         return;
     }
 
-    const API_URL = `http://localhost:5000/api/auth/resetpassword/${token}`;
+    const API_URL = `http://localhost:5003/api/auth/resetpassword/${token}`;
 
     try {
       const response = await fetch(API_URL, {
