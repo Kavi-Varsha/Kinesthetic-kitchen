@@ -1,73 +1,149 @@
-# Welcome to your Lovable project
+# 🍳 Kinesthetic Kitchen  
+### AI-Powered Personalized Recipe & Menu Recommendation System
 
-## Project info
+---
 
-**URL**: https://lovable.dev/projects/14d137d1-40da-4ea1-b579-fb32ac41d26e
+## 📌 Overview
 
-## How can I edit this code?
+**Kinesthetic Kitchen** is an AI-powered web application that generates personalized recipes based on a user's dietary preferences, allergies, and available ingredients.
 
-There are several ways of editing your application.
+The system also includes a **Restaurant Menu Analysis feature**, where users upload a menu image and receive safe/unsafe dish recommendations using OCR + AI.
 
-**Use Lovable**
+The goal of this project is to make cooking smarter, healthier, and more personalized using modern web technologies and AI integration.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/14d137d1-40da-4ea1-b579-fb32ac41d26e) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🚀 Key Features
 
-**Use your preferred IDE**
+### 🔐 Authentication System
+- User Registration & Login
+- JWT-based Authorization
+- Password Hashing using bcrypt
+- Forgot & Reset Password
+- Protected API Routes
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+---
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### 🥗 Personalized Recipe Generation
+- AI-powered recipe creation using **Gorg AI API**
+- Supports:
+  - Dietary restrictions (vegan, vegetarian, gluten-free, etc.)
+  - Allergy filtering
+  - Preferred cuisine
+- Structured output (Ingredients, Steps, Cooking Time)
+- "Recipe of the Day" suggestion
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### 🥘 Kitchen Mode
+- Generate recipes using only available ingredients
+- Backend filters out restricted ingredients
+- Smart prompt engineering ensures dietary compliance
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+---
 
-# Step 3: Install the necessary dependencies.
-npm i
+### 🏬 Restaurant Mode (Menu Analysis)
+- Upload restaurant menu image
+- OCR extracts text from image
+- AI analyzes menu items
+- Recommends:
+  - Safe dishes
+  - Dishes to avoid
+  - Possible substitutions
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+---
 
-**Edit a file directly in GitHub**
+## 🛠 Tech Stack
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
+### Frontend
 - React
-- shadcn-ui
+- TypeScript
 - Tailwind CSS
 
-## How can I deploy this project?
+### Backend
+- Node.js
+- Express.js
+- MongoDB (Mongoose)
+- JWT Authentication
+- bcrypt
+- Gorg AI API
+- OCR Integration
 
-Simply open [Lovable](https://lovable.dev/projects/14d137d1-40da-4ea1-b579-fb32ac41d26e) and click on Share -> Publish.
+---
 
-## Can I connect a custom domain to my Lovable project?
+## 🏗 Backend Architecture
 
-Yes, you can!
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Frontend (React)
+↓
+Express API (Node.js)
+↓
+Authentication Middleware (JWT)
+↓
+Controllers
+↓
+MongoDB (User & Recipe Storage)
+↓
+Gorg AI API / OCR Service
+↓
+Structured JSON Response
+↓
+Frontend Rendering
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+---
+
+## 🔄 Backend Workflow
+
+1. User logs in → receives JWT token.
+2. JWT is sent with every protected request.
+3. Backend verifies token via middleware.
+4. For recipe generation:
+   - Collects user dietary profile
+   - Builds AI prompt
+   - Calls Gorg API
+   - Validates response
+   - Stores recipe in MongoDB
+5. For menu analysis:
+   - OCR extracts menu text
+   - AI evaluates items against user restrictions
+   - Returns safe/unsafe recommendations
+
+---
+
+
+
+## 🔒 Security Measures
+
+- Password hashing using bcrypt
+- JWT-based protected routes
+- API keys stored in environment variables
+- Input validation & sanitization
+- CORS configuration
+
+
+🧠 Future Enhancements
+
+VR-based step-by-step cooking assistant
+
+Refresh token authentication
+
+Redis caching for AI responses
+
+Role-based access (Admin / Restaurant accounts)
+
+Performance monitoring dashboard
+
+📈 Learning Outcomes
+
+Implemented full-stack authentication flow
+
+Integrated third-party AI APIs
+
+Built secure REST APIs
+
+Applied prompt engineering techniques
+
+Worked with OCR text extraction
+
+Designed scalable backend architecture
