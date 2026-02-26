@@ -122,7 +122,7 @@ Frontend Rendering
 - CORS configuration
 
 
-🧠 Future Enhancements
+## 🧠 Future Enhancements
 
 VR-based step-by-step cooking assistant
 
@@ -134,7 +134,7 @@ Role-based access (Admin / Restaurant accounts)
 
 Performance monitoring dashboard
 
-📈 Learning Outcomes
+## 📈 Learning Outcomes
 
 Implemented full-stack authentication flow
 
