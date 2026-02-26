@@ -147,3 +147,20 @@ Applied prompt engineering techniques
 Worked with OCR text extraction
 
 Designed scalable backend architecture
+
+## ⚙️ Installation & Setup
+
+### 1️⃣ Clone the Repository
+```bash
+git clone https://github.com/your-username/kinesthetic-kitchen.git
+cd kinesthetic-kitchen
+2️⃣ Install Dependencies
+npm install
+3️⃣ Create .env File
+PORT=5000
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_secret_key
+GORG_API_KEY=your_gorg_api_key
+OCR_API_KEY=your_ocr_key
+4️⃣ Run the Server
+npm start
